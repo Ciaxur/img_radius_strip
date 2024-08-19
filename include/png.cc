@@ -1,4 +1,3 @@
-#include <cstdint>
 #include <cstring>
 #include <fmt/core.h>
 #include <fmt/format.h>
@@ -43,7 +42,7 @@ namespace png {
     }
 
     // For IHDR, 13B are expected.
-    if (chunk->length != 13) {
+    if (chunk->length != IDAT_CHUNK_LENGTH_BYTES) {
       fmt::println("Invalid IHDR data size of '{}B'. Expected 13B", chunk->length);
       return -1;
     }

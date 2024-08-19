@@ -12,6 +12,7 @@
 namespace png {
   // IDAT frames are offset by 12B each
   #define IDAT_LENGTH_BYTES 12
+  #define IDAT_CHUNK_LENGTH_BYTES 13
 
   // 8 Byte PNG header.
   struct ImageHeader {
@@ -32,7 +33,6 @@ namespace png {
   };
 
   // Chunk metadata.
-  // NOTE: Only IHDR is supported for now.
   // https://en.wikipedia.org/wiki/PNG#%22Chunks%22_within_the_file
   struct ImageChunk {
     // 4B length in big endian.

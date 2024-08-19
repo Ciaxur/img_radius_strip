@@ -12,6 +12,7 @@ bear -- g++ \
   -g \
   -lpthread \
   -lfmt \
+  $(pkg-config --cflags --libs libpng) \
   -Wall \
   -Wextra \
   -Wno-unused-parameter \

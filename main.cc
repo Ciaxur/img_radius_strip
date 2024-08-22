@@ -393,7 +393,7 @@ int main(int argc, char** argv) {
   print_png_info(png_ptr, info_ptr);
 
   // Do stuff with image.
-  if (apply_radius(100, png_ptr, info_ptr, row_pointers) == 0) {
+  if (apply_radius(cli_args.radius, png_ptr, info_ptr, row_pointers) == 0) {
     // Write image.
     std::filesystem::path out_filename_path{"out.png"};
 

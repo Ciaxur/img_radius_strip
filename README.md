@@ -1,8 +1,11 @@
 # PNG Radius Image Strip
+
 Creates a transparent radius around a given PNG image.
 
 # Usage
+
 ## Compile
+
 Use [bash scripts](./scripts/) to compile the project.
 
 ```sh
@@ -14,9 +17,11 @@ $ strip ./app
 ```
 
 ## Run
+
 After compiling, use the `-h` flag to show available tool options.
 
 Basic functionality of the tool consist of supplying the `-r` radius flag and path to the image being modified.
+
 ```sh
 $ ./app -r 10 ./path_to_image.png
 Image Parsed:
@@ -28,5 +33,18 @@ Image Parsed:
 Wrote new image to 'out.png'
 ```
 
+Takes the following:
+
+<p float="left" align="center">
+  <img align="center" width="50%" src="./assets/before.png" />
+</p>
+
+Results in:
+
+<p float="left" align="center">
+  <img align="center" width="50%" src="./assets/after_10_radius.png" />
+</p>
+
 # License
+
 Licensed under [MIT](./LICENSE.md).

@@ -10,6 +10,7 @@
 
 #include <libpng16/png.h>
 #include <png.h>
+#include <unistd.h>
 #include "pngconf.h"
 
 template<typename T>
@@ -21,20 +22,30 @@ struct Vector2D {
 struct CommandLineArgs {
   // Filepath to a valid PNG image.
   std::string img_filepath;
+  bool _img_filepath_required = true;
+
+  // Resulting image path.
+  std::string out_filepath = "out.png";
+  bool _is_out_to_stdout = false;
 
   // Radius value.
   size_t radius = 0;
+  bool _radius_required = true;
 };
 
 void print_help() {
   fmt::println("USAGE:");
   fmt::println("  app [OPTIONS] FILEPATH");
+  fmt::println("  app [OPTIONS] FILEPATH -o OUTPUT");
 
   fmt::println("\nDESCRIPTION\n");
   fmt::println("  Creates a transparent corder radius around a given PNG image\n");
 
   fmt::println("  -r RADIUS");
   fmt::println("    radius to apply on the given image");
+
+  fmt::println("  -o PATH");
+  fmt::println("    filepath to image result. '-' Is supported to output to stdout. Defaults to 'out.png'");
 }
 
 int parse_args(int argc, char** argv, CommandLineArgs *cli_args) {
@@ -72,6 +83,22 @@ int parse_args(int argc, char** argv, CommandLineArgs *cli_args) {
       ++i;
     }
 
+    else if ( std::strncmp(argv[i], "-o", 2) == 0 ) {
+      // Make sure there's a follow up argument for the value.
+      if ( i + 1 == argc ) {
+        fmt::println("Invalid raidius argument. Expected string value after flag");
+        print_help();
+        return 1;
+      }
+      cli_args->out_filepath = std::string{argv[i + 1]};
+
+      // Set flag if output path is '-', which is stdout.
+      cli_args->_is_out_to_stdout = cli_args->out_filepath == "-";
+
+      // Shift argv.
+      ++i;
+    }
+
     // Positional argument for filepath.
     else {
       cli_args->img_filepath = std::string{argv[i]};
@@ -79,11 +106,11 @@ int parse_args(int argc, char** argv, CommandLineArgs *cli_args) {
   }
 
   // Ensure required args are passed in.
-  if (cli_args->img_filepath == "") {
+  if (cli_args->_img_filepath_required && cli_args->img_filepath == "") {
     fmt::println("No required image filepath was given!");
     print_help();
     return 1;
-  } else if (cli_args->radius == 0) {
+  } else if (cli_args->_radius_required && cli_args->radius == 0) {
     fmt::println("No required radius was given!");
     print_help();
     return 1;
@@ -92,19 +119,20 @@ int parse_args(int argc, char** argv, CommandLineArgs *cli_args) {
   return 0;
 }
 
-void print_png_info(png_structp& png_ptr, png_infop& info_ptr) {
+void print_png_info(const CommandLineArgs& cli_args, png_structp& png_ptr, png_infop& info_ptr) {
   png_byte color_type = png_get_color_type(png_ptr, info_ptr);
   png_byte bit_depth  = png_get_bit_depth(png_ptr, info_ptr);
   png_byte channels   = png_get_channels(png_ptr, info_ptr);
   png_uint_32 width   = png_get_image_width(png_ptr, info_ptr);
   png_uint_32 height  = png_get_image_height(png_ptr, info_ptr);
 
-  fmt::println("Image Parsed:");
-  fmt::println("  - Color type = {}", color_type);
-  fmt::println("  - Bit depth  = {}", bit_depth);
-  fmt::println("  - Channels   = {}", channels);
-  fmt::println("  - Height     = {}", height);
-  fmt::println("  - Width      = {}", width);
+  FILE* output = cli_args._is_out_to_stdout ? stderr : stdout;
+  fmt::println(output, "Image Parsed:");
+  fmt::println(output, "  - Color type = {}", color_type);
+  fmt::println(output, "  - Bit depth  = {}", bit_depth);
+  fmt::println(output, "  - Channels   = {}", channels);
+  fmt::println(output, "  - Height     = {}", height);
+  fmt::println(output, "  - Width      = {}", width);
 }
 
 int read_png_file(const char* filepath, png_structp& png_ptr, png_infop& info_ptr, png_bytepp& row_pointers) {
@@ -169,15 +197,22 @@ int read_png_file(const char* filepath, png_structp& png_ptr, png_infop& info_pt
 }
 
 int write_png_file(const char* filepath, png_infop& info_ptr, png_bytepp& row_pointers) {
-  FILE* fp = fopen(filepath, "wb");
-  if (!fp) {
-    fmt::println("Failed write image to '{}': Failed to open file", filepath);
-    return 1;
+  // Check if we're outputing to stdout.
+  bool use_stdout = std::string{filepath} == "-";
+  FILE* fp;
+
+  if (!use_stdout) {
+    fp = fopen(filepath, "wb");
+    if (!fp) {
+      fmt::println("Failed write image to '{}': Failed to open file: {}", filepath, std::strerror(errno));
+      return 1;
+    }
   }
 
   // Create IO to write PNG to the opened file.
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-  png_init_io(png_ptr, fp);
+  if (use_stdout) png_init_io(png_ptr, stdout);
+  else            png_init_io(png_ptr, fp);
 
   png_uint_32 height  = png_get_image_height(png_ptr, info_ptr);
   png_uint_32 width  = png_get_image_width(png_ptr, info_ptr);
@@ -200,7 +235,7 @@ int write_png_file(const char* filepath, png_infop& info_ptr, png_bytepp& row_po
 
   // Clean up!
   png_destroy_write_struct(&png_ptr, NULL);
-  fclose(fp);
+  if (!use_stdout) fclose(fp);
   return 0;
 }
 
@@ -390,18 +425,19 @@ int main(int argc, char** argv) {
 
   // Alright now we're cookin.
   png_uint_32 height  = png_get_image_height(png_ptr, info_ptr);
-  print_png_info(png_ptr, info_ptr);
+  print_png_info(cli_args, png_ptr, info_ptr);
 
   // Do stuff with image.
   if (apply_radius(cli_args.radius, png_ptr, info_ptr, row_pointers) == 0) {
-    // Write image.
-    std::filesystem::path out_filename_path{"out.png"};
-
-    if (write_png_file(out_filename_path.c_str(), info_ptr, row_pointers) != 0) {
+    if (write_png_file(cli_args.out_filepath.c_str(), info_ptr, row_pointers) != 0) {
       fmt::println("Failed to write image");
     }
     else {
-      fmt::println("Wrote new image to '{}'", out_filename_path.c_str());
+      fmt::println(
+        cli_args._is_out_to_stdout ? stderr : stdout,
+        "Wrote new image to '{}'",
+        cli_args.out_filepath.c_str()
+      );
     }
   }
 
